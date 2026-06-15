@@ -3,7 +3,6 @@ const session = require('express-session');
 const multer = require('multer');
 const bcrypt = require('bcryptjs');
 const path = require('path');
-const fs = require('fs');
 const { Pool } = require('pg');
 const { v4: uuidv4 } = require('uuid');
 const ExcelJS = require('exceljs');
@@ -11,8 +10,15 @@ const ExcelJS = require('exceljs');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// === Ensure directories ===
-fs.mkdirSync('./uploads', { recursive: true });
+// Multer - memory storage (no local files)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ok = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(file.originalname);
+    cb(null, ok);
+  }
+});
 
 // === Database (PostgreSQL) ===
 const pool = new Pool({
@@ -50,7 +56,8 @@ async function initDB() {
     CREATE TABLE IF NOT EXISTS product_groups (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
-      image TEXT,
+      image_data TEXT,
+      image_ext TEXT DEFAULT 'jpeg',
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
@@ -93,7 +100,8 @@ async function initDB() {
     CREATE TABLE IF NOT EXISTS payment_images (
       id TEXT PRIMARY KEY,
       record_id TEXT NOT NULL REFERENCES records(id) ON DELETE CASCADE,
-      file_path TEXT NOT NULL,
+      data TEXT NOT NULL,
+      ext TEXT DEFAULT 'jpeg',
       original_name TEXT DEFAULT '',
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
@@ -123,7 +131,7 @@ async function initDB() {
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Session store - use connect-pg-simple for production
+// Session store
 const pgSession = require('connect-pg-simple');
 const sessionStore = new (pgSession(session))({ pool });
 
@@ -136,24 +144,6 @@ app.use(session({
 }));
 
 app.use(express.static('public'));
-app.use('/uploads', express.static('uploads'));
-
-// Multer
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, './uploads'),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname) || '.jpg';
-    cb(null, Date.now() + '-' + uuidv4().slice(0, 8) + ext);
-  }
-});
-const upload = multer({
-  storage,
-  limits: { fileSize: 10 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    const ok = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(file.originalname);
-    cb(null, ok);
-  }
-});
 
 // Auth helpers
 function auth(req, res, next) {
@@ -164,6 +154,44 @@ function adminOnly(req, res, next) {
   if (!req.session.user || req.session.user.role !== 'admin') return res.status(403).json({ error: '无权限访问' });
   next();
 }
+
+// Helper: convert buffer to base64
+function bufToBase64(buf) {
+  return buf.toString('base64');
+}
+
+// Helper: get extension from filename
+function getExt(filename) {
+  const ext = path.extname(filename || '').slice(1).toLowerCase();
+  if (ext === 'jpg') return 'jpeg';
+  if (['jpeg', 'png', 'gif', 'webp', 'bmp'].includes(ext)) return ext;
+  return 'jpeg';
+}
+
+// ====== IMAGE SERVING ======
+app.get('/api/images/payment/:id', async (req, res) => {
+  try {
+    const img = await queryOne('SELECT data, ext FROM payment_images WHERE id = $1', [req.params.id]);
+    if (!img || !img.data) return res.status(404).send('Not found');
+    const buf = Buffer.from(img.data, 'base64');
+    const contentType = `image/${img.ext || 'jpeg'}`;
+    res.set('Content-Type', contentType);
+    res.set('Cache-Control', 'public, max-age=86400');
+    res.send(buf);
+  } catch (e) { res.status(500).send('Error'); }
+});
+
+app.get('/api/images/product/:id', async (req, res) => {
+  try {
+    const p = await queryOne('SELECT image_data, image_ext FROM product_groups WHERE id = $1', [req.params.id]);
+    if (!p || !p.image_data) return res.status(404).send('Not found');
+    const buf = Buffer.from(p.image_data, 'base64');
+    const contentType = `image/${p.image_ext || 'jpeg'}`;
+    res.set('Content-Type', contentType);
+    res.set('Cache-Control', 'public, max-age=86400');
+    res.send(buf);
+  } catch (e) { res.status(500).send('Error'); }
+});
 
 // ====== AUTH ROUTES ======
 app.post('/api/login', async (req, res) => {
@@ -260,9 +288,13 @@ app.delete('/api/users/:id', adminOnly, async (req, res) => {
 // ====== PRODUCT MANAGEMENT ======
 app.get('/api/products', async (req, res) => {
   try {
-    const groups = await query('SELECT * FROM product_groups ORDER BY created_at DESC');
+    const groups = await query('SELECT id, name, image_ext, created_at FROM product_groups ORDER BY created_at DESC');
     const variants = await query('SELECT * FROM product_variants ORDER BY created_at ASC');
-    const products = groups.map(g => ({ ...g, variants: variants.filter(v => v.group_id === g.id) }));
+    const products = groups.map(g => ({
+      ...g,
+      image: g.image_ext ? `/api/images/product/${g.id}` : null,
+      variants: variants.filter(v => v.group_id === g.id)
+    }));
     res.json({ products });
   } catch (e) { res.status(500).json({ error: '查询失败' }); }
 });
@@ -272,9 +304,13 @@ app.post('/api/products', adminOnly, upload.single('image'), async (req, res) =>
     const { name } = req.body;
     if (!name) return res.status(400).json({ error: '请输入商品组名称' });
     const id = uuidv4();
-    const image = req.file ? `/uploads/${req.file.filename}` : null;
-    await run('INSERT INTO product_groups (id, name, image) VALUES ($1, $2, $3)', [id, name, image]);
-    res.json({ ok: true, product: { id, name, image, variants: [] } });
+    let imageData = null, imageExt = null;
+    if (req.file) {
+      imageData = bufToBase64(req.file.buffer);
+      imageExt = getExt(req.file.originalname);
+    }
+    await run('INSERT INTO product_groups (id, name, image_data, image_ext) VALUES ($1, $2, $3, $4)', [id, name, imageData, imageExt]);
+    res.json({ ok: true, product: { id, name, image: imageExt ? `/api/images/product/${id}` : null, variants: [] } });
   } catch (e) { res.status(500).json({ error: '创建失败' }); }
 });
 
@@ -283,14 +319,15 @@ app.put('/api/products/:id', adminOnly, upload.single('image'), async (req, res)
     const { name, removeImage } = req.body;
     const p = await queryOne('SELECT * FROM product_groups WHERE id = $1', [req.params.id]);
     if (!p) return res.status(404).json({ error: '商品不存在' });
-    let image = p.image;
+    let imageData = p.image_data, imageExt = p.image_ext;
     if (req.file) {
-      image = `/uploads/${req.file.filename}`;
+      imageData = bufToBase64(req.file.buffer);
+      imageExt = getExt(req.file.originalname);
     } else if (removeImage === '1') {
-      if (p.image) try { fs.unlinkSync('.' + p.image); } catch (e) { }
-      image = null;
+      imageData = null;
+      imageExt = null;
     }
-    await run('UPDATE product_groups SET name = $1, image = $2 WHERE id = $3', [name, image, req.params.id]);
+    await run('UPDATE product_groups SET name = $1, image_data = $2, image_ext = $3 WHERE id = $4', [name, imageData, imageExt, req.params.id]);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: '修改失败' }); }
 });
@@ -299,18 +336,7 @@ app.delete('/api/products/:id', adminOnly, async (req, res) => {
   try {
     const p = await queryOne('SELECT * FROM product_groups WHERE id = $1', [req.params.id]);
     if (!p) return res.status(404).json({ error: '商品不存在' });
-    const variants = await query('SELECT id FROM product_variants WHERE group_id = $1', [req.params.id]);
-    for (const v of variants) {
-      const recs = await query('SELECT id FROM records WHERE variant_id = $1', [v.id]);
-      for (const r of recs) {
-        const imgs = await query('SELECT file_path FROM payment_images WHERE record_id = $1', [r.id]);
-        for (const img of imgs) { try { fs.unlinkSync('.' + img.file_path); } catch (e) { } }
-        await run('DELETE FROM payment_images WHERE record_id = $1', [r.id]);
-      }
-      await run('DELETE FROM records WHERE variant_id = $1', [v.id]);
-    }
-    await run('DELETE FROM product_variants WHERE group_id = $1', [req.params.id]);
-    if (p.image) { try { fs.unlinkSync('.' + p.image); } catch (e) { } }
+    // Cascade deletes will handle payment_images, records, variants
     await run('DELETE FROM product_groups WHERE id = $1', [req.params.id]);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: '删除失败' }); }
@@ -343,13 +369,7 @@ app.delete('/api/products/:groupId/variants/:variantId', adminOnly, async (req, 
   try {
     const v = await queryOne('SELECT * FROM product_variants WHERE id = $1 AND group_id = $2', [req.params.variantId, req.params.groupId]);
     if (!v) return res.status(404).json({ error: '规格不存在' });
-    const recs = await query('SELECT id FROM records WHERE variant_id = $1', [req.params.variantId]);
-    for (const r of recs) {
-      const imgs = await query('SELECT file_path FROM payment_images WHERE record_id = $1', [r.id]);
-      for (const img of imgs) { try { fs.unlinkSync('.' + img.file_path); } catch (e) { } }
-      await run('DELETE FROM payment_images WHERE record_id = $1', [r.id]);
-    }
-    await run('DELETE FROM records WHERE variant_id = $1', [req.params.variantId]);
+    // Cascade deletes will handle payment_images and records
     await run('DELETE FROM product_variants WHERE id = $1', [req.params.variantId]);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: '删除失败' }); }
@@ -359,8 +379,8 @@ app.delete('/api/products/:groupId/variants/:variantId', adminOnly, async (req, 
 async function parseRecordImages(recs) {
   const result = [];
   for (const r of recs) {
-    const imgs = await query('SELECT file_path, original_name FROM payment_images WHERE record_id = $1', [r.id]);
-    result.push({ ...r, images: imgs });
+    const imgs = await query('SELECT id, ext, original_name FROM payment_images WHERE record_id = $1', [r.id]);
+    result.push({ ...r, images: imgs.map(i => ({ id: i.id, file_path: `/api/images/payment/${i.id}`, ext: i.ext, original_name: i.original_name })) });
   }
   return result;
 }
@@ -401,7 +421,10 @@ app.post('/api/records', auth, upload.array('paymentImages', 10), async (req, re
       [id, req.session.user.id, req.session.user.name, bdId || '', cinemaSpecialId || '', cinemaName || '', variant.group_id, variant.group_name, variant.id, variant.name, qty, actualPrice, subtotal, receiverName, receiverPhone, province || '', city || '', district || '', address]);
 
     for (const file of req.files) {
-      await run('INSERT INTO payment_images (id, record_id, file_path, original_name) VALUES ($1, $2, $3, $4)', [uuidv4(), id, '/uploads/' + file.filename, file.originalname]);
+      const imgId = uuidv4();
+      const b64 = bufToBase64(file.buffer);
+      const ext = getExt(file.originalname);
+      await run('INSERT INTO payment_images (id, record_id, data, ext, original_name) VALUES ($1, $2, $3, $4, $5)', [imgId, id, b64, ext, file.originalname]);
     }
 
     await run('UPDATE product_variants SET occupied = occupied + $1 WHERE id = $2', [qty, variantId]);
@@ -414,9 +437,7 @@ app.delete('/api/records/:id', adminOnly, async (req, res) => {
     const rec = await queryOne('SELECT * FROM records WHERE id = $1', [req.params.id]);
     if (!rec) return res.status(404).json({ error: '记录不存在' });
     await run('UPDATE product_variants SET occupied = GREATEST(0, occupied - $1) WHERE id = $2', [rec.qty, rec.variant_id]);
-    const imgs = await query('SELECT file_path FROM payment_images WHERE record_id = $1', [req.params.id]);
-    for (const img of imgs) { try { fs.unlinkSync('.' + img.file_path); } catch (e) { } }
-    await run('DELETE FROM payment_images WHERE record_id = $1', [req.params.id]);
+    // Cascade delete will handle payment_images
     await run('DELETE FROM records WHERE id = $1', [req.params.id]);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: '删除失败' }); }
@@ -461,10 +482,17 @@ app.get('/api/export', adminOnly, async (req, res) => {
     if (productId) recs = recs.filter(r => r.product_group_id === productId);
     if (recs.length === 0) return res.status(400).json({ error: '无数据可导出' });
 
-    recs = await parseRecordImages(recs);
+    // Get all images for these records
+    const recordIds = recs.map(r => r.id);
+    const allImages = await query(`SELECT * FROM payment_images WHERE record_id = ANY($1)`, [recordIds]);
 
     let maxImgs = 0;
-    recs.forEach(r => { if ((r.images || []).length > maxImgs) maxImgs = r.images.length; });
+    const imagesByRecord = {};
+    for (const img of allImages) {
+      if (!imagesByRecord[img.record_id]) imagesByRecord[img.record_id] = [];
+      imagesByRecord[img.record_id].push(img);
+      if (imagesByRecord[img.record_id].length > maxImgs) maxImgs = imagesByRecord[img.record_id].length;
+    }
 
     const workbook = new ExcelJS.Workbook();
     const ws = workbook.addWorksheet('库存占用数据');
@@ -497,21 +525,21 @@ app.get('/api/export', adminOnly, async (req, res) => {
       ]);
       row.height = 75;
 
-      if (r.images && r.images.length > 0) {
-        for (let j = 0; j < r.images.length; j++) {
+      const imgs = imagesByRecord[r.id] || [];
+      if (imgs.length > 0) {
+        for (let j = 0; j < imgs.length; j++) {
           try {
-            const fullPath = '.' + r.images[j].file_path;
-            if (fs.existsSync(fullPath)) {
-              const ext = path.extname(fullPath).slice(1).toLowerCase();
-              const imageId = workbook.addImage({
-                buffer: fs.readFileSync(fullPath),
-                extension: ext === 'jpg' ? 'jpeg' : ext
-              });
-              ws.addImage(imageId, {
-                tl: { col: 16 + j, row: i + 1 },
-                ext: { width: 120, height: 65 }
-              });
-            }
+            const imgData = imgs[j];
+            const buf = Buffer.from(imgData.data, 'base64');
+            const ext = (imgData.ext || 'jpeg').replace('jpg', 'jpeg');
+            const imageId = workbook.addImage({
+              buffer: buf,
+              extension: ext
+            });
+            ws.addImage(imageId, {
+              tl: { col: 16 + j, row: i + 1 },
+              ext: { width: 120, height: 65 }
+            });
           } catch (e) { console.error('Image embed error:', e.message); }
         }
       }
