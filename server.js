@@ -132,8 +132,15 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Session store
-const pgSession = require('connect-pg-simple');
-const sessionStore = new (pgSession(session))({ pool });
+let sessionStore;
+try {
+  const pgSession = require('connect-pg-simple');
+  sessionStore = new (pgSession(session))({ pool, createTableIfMissing: true });
+  console.log('Session store (PG) initialized.');
+} catch(e) {
+  console.warn('Session store init failed, using memory store:', e.message);
+  sessionStore = new session.MemoryStore();
+}
 
 app.use(session({
   store: sessionStore,
@@ -197,12 +204,20 @@ app.get('/api/images/product/:id', async (req, res) => {
 app.post('/api/login', async (req, res) => {
   try {
     const { phone, password } = req.body;
+    console.log('[Login attempt] phone:', phone);
     if (!phone || !password) return res.status(400).json({ error: '请输入手机号和密码' });
     const user = await queryOne('SELECT * FROM users WHERE phone = $1', [phone]);
-    if (!user || !bcrypt.compareSync(password, user.password)) return res.status(401).json({ error: '手机号或密码错误' });
+    console.log('[Login] user found:', !!user);
+    if (!user) return res.status(401).json({ error: '手机号或密码错误' });
+    const match = bcrypt.compareSync(password, user.password);
+    console.log('[Login] password match:', match);
+    if (!match) return res.status(401).json({ error: '手机号或密码错误' });
     req.session.user = { id: user.id, phone: user.phone, name: user.name, role: user.role };
     res.json({ user: req.session.user });
-  } catch (e) { res.status(500).json({ error: '登录失败' }); }
+  } catch (e) {
+    console.error('[Login error]', e.message, e.stack);
+    res.status(500).json({ error: '登录失败: ' + e.message });
+  }
 });
 
 app.post('/api/logout', (req, res) => { req.session.destroy(); res.json({ ok: true }); });
@@ -210,6 +225,18 @@ app.post('/api/logout', (req, res) => { req.session.destroy(); res.json({ ok: tr
 app.get('/api/me', (req, res) => {
   if (!req.session.user) return res.status(401).json({ error: '未登录' });
   res.json({ user: req.session.user });
+});
+
+// Debug endpoint - remove in production
+app.get('/api/debug', async (req, res) => {
+  try {
+    const userCount = await queryOne('SELECT COUNT(*) as c FROM users');
+    const users = await query('SELECT id, phone, name, role FROM users LIMIT 5');
+    const tables = await query(`SELECT table_name FROM information_schema.tables WHERE table_schema='public'`);
+    res.json({ userCount, users, tables: tables.map(t => t.table_name) });
+  } catch(e) {
+    res.json({ error: e.message });
+  }
 });
 
 app.put('/api/me/password', auth, async (req, res) => {
