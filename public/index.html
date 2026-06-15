@@ -1,0 +1,1184 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>库存管理系统</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+:root{--sidebar-w:220px;--primary:#4f46e5;--primary-light:#6366f1;--danger:#dc2626;--success:#16a34a;--warning:#f59e0b;--bg:#f1f5f9;--card:#fff;--text:#1e293b;--text2:#64748b;--border:#e2e8f0;--radius:10px;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--text);line-height:1.5;}
+::-webkit-scrollbar{width:6px;height:6px;}
+::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px;}
+
+/* === Login === */
+.login-overlay{position:fixed;inset:0;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);display:flex;align-items:center;justify-content:center;z-index:9999;}
+.login-card{background:#fff;border-radius:16px;padding:48px 40px;width:400px;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,.2);}
+.login-card h1{text-align:center;font-size:22px;margin-bottom:8px;color:#1e293b;}
+.login-card p{text-align:center;color:#94a3b8;font-size:14px;margin-bottom:28px;}
+.login-card .form-group{margin-bottom:18px;}
+.login-card label{display:block;font-size:13px;font-weight:600;color:#475569;margin-bottom:6px;}
+.login-card input{width:100%;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:15px;transition:border .2s;}
+.login-card input:focus{outline:none;border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.15);}
+.login-card .btn-login{width:100%;padding:12px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:600;cursor:pointer;transition:opacity .2s;}
+.login-card .btn-login:hover{opacity:.9;}
+.login-card .error-msg{color:#dc2626;font-size:13px;text-align:center;margin-top:12px;min-height:20px;}
+.login-card .demo-info{margin-top:20px;padding:12px;background:#f8fafc;border-radius:8px;font-size:12px;color:#64748b;}
+
+/* === Layout === */
+.app{display:none;height:100vh;}
+.sidebar{position:fixed;left:0;top:0;bottom:0;width:var(--sidebar-w);background:linear-gradient(180deg,#1e293b 0%,#0f172a 100%);color:#e2e8f0;padding:20px 0;display:flex;flex-direction:column;z-index:100;}
+.sidebar-brand{padding:0 20px 20px;border-bottom:1px solid rgba(255,255,255,.08);}
+.sidebar-brand h2{font-size:17px;font-weight:700;color:#fff;}
+.sidebar-brand span{font-size:12px;color:#94a3b8;display:block;margin-top:4px;}
+.sidebar-nav{flex:1;padding:16px 0;overflow-y:auto;}
+.nav-item{display:flex;align-items:center;padding:10px 20px;color:#94a3b8;font-size:14px;cursor:pointer;transition:all .2s;border-left:3px solid transparent;gap:10px;}
+.nav-item:hover{color:#e2e8f0;background:rgba(255,255,255,.05);}
+.nav-item.active{color:#fff;background:rgba(99,102,241,.2);border-left-color:#6366f1;}
+.nav-item i{width:18px;text-align:center;font-size:14px;}
+.nav-section{padding:8px 20px 4px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-top:8px;}
+.sidebar-footer{padding:16px 20px;border-top:1px solid rgba(255,255,255,.08);}
+.sidebar-footer .user-info{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.sidebar-footer .user-avatar{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;}
+.sidebar-footer .user-name{font-size:13px;color:#e2e8f0;font-weight:600;}
+.sidebar-footer .user-role{font-size:11px;color:#64748b;}
+.sidebar-footer .btn-logout{width:100%;padding:7px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:#94a3b8;border-radius:6px;font-size:12px;cursor:pointer;transition:all .2s;}
+.sidebar-footer .btn-logout:hover{background:rgba(255,255,255,.15);color:#fff;}
+
+.main{margin-left:var(--sidebar-w);height:100vh;overflow-y:auto;padding:24px 28px;}
+
+/* === Components === */
+.page{display:none;}
+.page.active{display:block;}
+.card{background:var(--card);border-radius:var(--radius);padding:22px;box-shadow:0 1px 3px rgba(0,0,0,.06);margin-bottom:18px;}
+.card-title{font-size:16px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px;}
+.card-title i{color:var(--primary);}
+
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;}
+.btn-primary{background:var(--primary);color:#fff;}.btn-primary:hover{background:var(--primary-light);}
+.btn-success{background:var(--success);color:#fff;}.btn-success:hover{opacity:.9;}
+.btn-danger{background:var(--danger);color:#fff;}.btn-danger:hover{opacity:.9;}
+.btn-warning{background:var(--warning);color:#fff;}
+.btn-sm{padding:5px 10px;font-size:12px;}
+.btn-outline{background:transparent;border:1.5px solid var(--border);color:var(--text2);}.btn-outline:hover{border-color:var(--primary);color:var(--primary);}
+
+.form-group{margin-bottom:14px;}
+.form-group label{display:block;font-size:13px;font-weight:600;color:#475569;margin-bottom:5px;}
+.form-group input,.form-group select,.form-group textarea{width:100%;padding:8px 12px;border:1.5px solid var(--border);border-radius:6px;font-size:14px;transition:border .2s;background:#fff;}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(99,102,241,.1);}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 16px;}
+.form-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 16px;}
+
+/* Stats */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px;}
+.stat-card{background:#fff;border-radius:var(--radius);padding:20px;box-shadow:0 1px 3px rgba(0,0,0,.06);}
+.stat-card .stat-label{font-size:13px;color:var(--text2);margin-bottom:6px;}
+.stat-card .stat-value{font-size:26px;font-weight:800;color:var(--text);}
+.stat-card .stat-sub{font-size:12px;color:var(--text2);margin-top:4px;}
+.stat-card.blue{border-left:4px solid #3b82f6;}
+.stat-card.green{border-left:4px solid #22c55e;}
+.stat-card.purple{border-left:4px solid #8b5cf6;}
+.stat-card.orange{border-left:4px solid #f97316;}
+
+/* Tables */
+.table-wrap{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th{background:#f8fafc;padding:10px 12px;text-align:left;font-weight:600;color:#475569;border-bottom:2px solid var(--border);white-space:nowrap;}
+td{padding:8px 12px;border-bottom:1px solid #f1f5f9;vertical-align:middle;}
+tr:hover td{background:#f8fafc;}
+.img-thumb{width:48px;height:48px;object-fit:cover;border-radius:6px;cursor:pointer;transition:transform .2s;border:1px solid var(--border);}
+.img-thumb:hover{transform:scale(1.15);}
+.img-thumbs{display:flex;gap:4px;flex-wrap:wrap;}
+
+/* Product cards */
+.product-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;}
+.product-card{background:#fff;border-radius:var(--radius);overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06);transition:transform .2s;}
+.product-card:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,.1);}
+.product-card .product-img{height:140px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;overflow:hidden;}
+.product-card .product-img img{width:100%;height:100%;object-fit:cover;}
+.product-card .product-img i{font-size:40px;color:#cbd5e1;}
+.product-card .product-body{padding:14px;}
+.product-card .product-name{font-size:15px;font-weight:700;margin-bottom:8px;}
+.variant-item{display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9;font-size:13px;}
+.variant-item:last-child{border-bottom:none;}
+.variant-stock{font-size:12px;color:var(--text2);}
+.variant-actions{display:flex;gap:4px;}
+.stock-bar{width:60px;height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden;display:inline-block;vertical-align:middle;margin-left:6px;}
+.stock-bar-fill{height:100%;border-radius:3px;transition:width .3s;}
+
+/* Modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:200;opacity:0;pointer-events:none;transition:opacity .2s;}
+.modal-overlay.show{opacity:1;pointer-events:all;}
+.modal{background:#fff;border-radius:12px;padding:28px;width:560px;max-width:90vw;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2);}
+.modal h3{font-size:18px;font-weight:700;margin-bottom:20px;}
+.modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px;}
+
+/* Lightbox */
+.lightbox{position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;z-index:300;opacity:0;pointer-events:none;transition:opacity .2s;}
+.lightbox.show{opacity:1;pointer-events:all;}
+.lightbox img{max-width:90vw;max-height:90vh;object-fit:contain;border-radius:8px;}
+.lightbox-close{position:absolute;top:20px;right:20px;color:#fff;font-size:28px;cursor:pointer;width:40px;height:40px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.15);border-radius:50%;}
+.lightbox-nav{position:absolute;top:50%;transform:translateY(-50%);color:#fff;font-size:24px;cursor:pointer;width:44px;height:44px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.15);border-radius:50%;}
+.lightbox-nav.prev{left:20px;}
+.lightbox-nav.next{right:20px;}
+.lightbox-counter{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);color:#fff;font-size:14px;}
+
+/* Toast */
+.toast{position:fixed;top:20px;right:20px;padding:12px 20px;border-radius:8px;color:#fff;font-size:14px;font-weight:500;z-index:400;transform:translateX(120%);transition:transform .3s;box-shadow:0 4px 12px rgba(0,0,0,.15);}
+.toast.show{transform:translateX(0);}
+.toast.success{background:#16a34a;}
+.toast.error{background:#dc2626;}
+.toast.info{background:#3b82f6;}
+
+/* Badge */
+.badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;}
+.badge-admin{background:#ede9fe;color:#7c3aed;}
+.badge-bd{background:#dbeafe;color:#2563eb;}
+
+/* Filter bar */
+.filter-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px;}
+.filter-bar input,.filter-bar select{padding:7px 12px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;}
+
+/* Upload area */
+.upload-area{border:2px dashed var(--border);border-radius:8px;padding:20px;text-align:center;cursor:pointer;transition:all .2s;position:relative;}
+.upload-area:hover{border-color:var(--primary);background:rgba(99,102,241,.03);}
+.upload-area input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;}
+.upload-area i{font-size:28px;color:#94a3b8;margin-bottom:8px;display:block;}
+.upload-area span{font-size:13px;color:#64748b;}
+.upload-previews{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
+.upload-previews .preview-item{position:relative;width:72px;height:72px;}
+.upload-previews .preview-item img{width:100%;height:100%;object-fit:cover;border-radius:6px;border:1px solid var(--border);}
+.upload-previews .preview-item .remove-btn{position:absolute;top:-6px;right:-6px;width:20px;height:20px;background:#dc2626;color:#fff;border:none;border-radius:50%;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+
+/* BD product selector */
+.bd-product-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:16px;}
+.bd-product-item{padding:12px;border:2px solid var(--border);border-radius:8px;cursor:pointer;transition:all .2s;text-align:center;}
+.bd-product-item:hover{border-color:var(--primary-light);}
+.bd-product-item.selected{border-color:var(--primary);background:rgba(99,102,241,.06);}
+.bd-product-item .bp-name{font-size:13px;font-weight:600;margin-top:6px;}
+.bd-product-item .bp-img{width:60px;height:60px;object-fit:cover;border-radius:6px;margin:0 auto;}
+
+.bd-variant-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;}
+.bd-variant-item{padding:10px;border:2px solid var(--border);border-radius:8px;cursor:pointer;transition:all .2s;text-align:center;}
+.bd-variant-item:hover{border-color:var(--primary-light);}
+.bd-variant-item.selected{border-color:var(--primary);background:rgba(99,102,241,.06);}
+.bd-variant-item .bv-name{font-size:13px;font-weight:600;}
+.bd-variant-item .bv-info{font-size:11px;color:var(--text2);margin-top:3px;}
+
+@media(max-width:768px){
+  .sidebar{display:none;}
+  .main{margin-left:0;}
+  .stats-row{grid-template-columns:1fr 1fr;}
+  .form-grid,.form-grid-3{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+
+<!-- Login Overlay -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-card">
+    <h1><i class="fas fa-boxes-stacked" style="color:#6366f1;margin-right:6px;"></i> 库存管理系统</h1>
+    <p>请使用手机号和密码登录</p>
+    <div class="form-group">
+      <label>手机号</label>
+      <input type="text" id="login-phone" placeholder="请输入手机号" autocomplete="username">
+    </div>
+    <div class="form-group">
+      <label>密码</label>
+      <input type="password" id="login-password" placeholder="请输入密码" autocomplete="current-password">
+    </div>
+    <button class="btn-login" onclick="doLogin()">登 录</button>
+    <div class="error-msg" id="login-error"></div>
+    <div class="demo-info">
+      <div style="font-weight:600;margin-bottom:4px;">演示账号：</div>
+      <div>管理员：手机号 <b>admin</b> / 密码 <b>admin123</b></div>
+    </div>
+  </div>
+</div>
+
+<!-- Main App -->
+<div class="app" id="app">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-brand">
+      <h2><i class="fas fa-boxes-stacked" style="margin-right:6px;"></i>库存管理</h2>
+      <span>Inventory Management</span>
+    </div>
+    <div class="sidebar-nav" id="sidebarNav"></div>
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <div class="user-avatar" id="userAvatar"></div>
+        <div>
+          <div class="user-name" id="userName"></div>
+          <div class="user-role" id="userRole"></div>
+        </div>
+      </div>
+      <button class="btn-logout" onclick="doLogout()"><i class="fas fa-sign-out-alt"></i> 退出登录</button>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="main" id="mainContent">
+    <!-- Dashboard Page -->
+    <div class="page" id="page-dashboard">
+      <h2 style="font-size:20px;font-weight:700;margin-bottom:20px;"><i class="fas fa-chart-pie" style="color:var(--primary);"></i> 数据看板</h2>
+      <div class="stats-row" id="statsRow"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div class="card"><div class="card-title"><i class="fas fa-chart-line"></i> 7天占用趋势</div><canvas id="trendChart" height="200"></canvas></div>
+        <div class="card"><div class="card-title"><i class="fas fa-chart-bar"></i> 各规格库存占用率</div><canvas id="stockChart" height="200"></canvas></div>
+      </div>
+      <div class="card" style="margin-top:16px;">
+        <div class="card-title"><i class="fas fa-trophy"></i> 今日BD提交排行</div>
+        <div id="bdRanking"></div>
+      </div>
+    </div>
+
+    <!-- Products Page -->
+    <div class="page" id="page-products">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+        <h2 style="font-size:20px;font-weight:700;"><i class="fas fa-box-open" style="color:var(--primary);"></i> 商品管理</h2>
+        <button class="btn btn-primary" onclick="showAddProduct()"><i class="fas fa-plus"></i> 添加商品组</button>
+      </div>
+      <div class="product-grid" id="productGrid"></div>
+    </div>
+
+    <!-- Users Page -->
+    <div class="page" id="page-users">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+        <h2 style="font-size:20px;font-weight:700;"><i class="fas fa-users" style="color:var(--primary);"></i> 用户管理</h2>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-outline" onclick="showBatchAddUsers()"><i class="fas fa-file-import"></i> 批量添加</button>
+          <button class="btn btn-primary" onclick="showAddUser()"><i class="fas fa-plus"></i> 添加用户</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="table-wrap"><table id="usersTable"></table></div>
+      </div>
+    </div>
+
+    <!-- Records Page -->
+    <div class="page" id="page-records">
+      <h2 style="font-size:20px;font-weight:700;margin-bottom:20px;"><i class="fas fa-clipboard-list" style="color:var(--primary);"></i> 占用记录</h2>
+      <div class="card">
+        <div class="filter-bar" id="recordFilters"></div>
+        <div class="table-wrap"><table id="recordsTable"></table></div>
+      </div>
+    </div>
+
+    <!-- Export Page -->
+    <div class="page" id="page-export">
+      <h2 style="font-size:20px;font-weight:700;margin-bottom:20px;"><i class="fas fa-file-export" style="color:var(--primary);"></i> 数据导出</h2>
+      <div class="card">
+        <div class="card-title">筛选条件</div>
+        <div class="filter-bar" id="exportFilters"></div>
+        <div style="margin-top:16px;display:flex;gap:10px;">
+          <button class="btn btn-primary" onclick="doExport()"><i class="fas fa-download"></i> 导出 Excel（含截图）</button>
+        </div>
+        <div style="margin-top:16px;font-size:13px;color:#64748b;">
+          <div style="font-weight:600;color:#1e293b;margin-bottom:4px;">导出字段说明：</div>
+          <div>提交时间 · BD姓名 · BD工号 · 影城专资ID · 影城名称 · 收件人姓名 · 收件人手机号 · 省 · 市 · 区 · 收件人地址 · 商品名称 · 货品规格 · 货品数量 · 货品单价 · 金额小计 · 付款截图（内嵌图片）</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BD Submit Page -->
+    <div class="page" id="page-bd-submit">
+      <h2 style="font-size:20px;font-weight:700;margin-bottom:20px;"><i class="fas fa-pen-to-square" style="color:var(--primary);"></i> 填写占用</h2>
+      <div class="card">
+        <div class="card-title">BD 信息</div>
+        <div class="form-grid" style="max-width:600px;">
+          <div class="form-group"><label>影城专资ID <span style="color:#dc2626;">*</span></label><input type="text" id="bd-cinema-special-id" placeholder="请输入影城专资ID"></div>
+          <div class="form-group"><label>影城名称 <span style="color:#dc2626;">*</span></label><input type="text" id="bd-cinema-name" placeholder="请输入影城名称"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">选择商品</div>
+        <div class="bd-product-list" id="bdProductList"></div>
+        <div id="bdVariantArea" style="display:none;">
+          <div style="font-size:13px;font-weight:600;color:#475569;margin-bottom:8px;">选择规格：</div>
+          <div class="bd-variant-list" id="bdVariantList"></div>
+        </div>
+      </div>
+      <div class="card" id="bdFormArea" style="display:none;">
+        <div class="card-title">收件人信息</div>
+        <div class="form-grid">
+          <div class="form-group"><label>收件人姓名 <span style="color:#dc2626;">*</span></label><input type="text" id="bd-receiver-name" placeholder="收件人姓名"></div>
+          <div class="form-group"><label>手机号/电话 <span style="color:#dc2626;">*</span></label><input type="text" id="bd-receiver-phone" placeholder="手机号/电话"></div>
+        </div>
+        <div class="form-grid-3">
+          <div class="form-group"><label>省</label><input type="text" id="bd-province" placeholder="省"></div>
+          <div class="form-group"><label>市</label><input type="text" id="bd-city" placeholder="市"></div>
+          <div class="form-group"><label>区</label><input type="text" id="bd-district" placeholder="区"></div>
+        </div>
+        <div class="form-group"><label>详细地址 <span style="color:#dc2626;">*</span></label><input type="text" id="bd-address" placeholder="详细地址"></div>
+        <div class="form-grid">
+          <div class="form-group"><label>数量 <span style="color:#dc2626;">*</span></label><input type="number" id="bd-qty" min="1" value="1" onchange="calcSubtotal()"></div>
+          <div class="form-group"><label>单价(¥) <span style="color:#dc2626;">*</span></label><input type="number" id="bd-price" min="0" step="0.01" onchange="calcSubtotal()"></div>
+        </div>
+        <div id="bd-subtotal-info" style="font-size:15px;font-weight:700;color:var(--primary);margin-bottom:14px;"></div>
+        <div class="card-title" style="margin-top:8px;">付款截图 <span style="color:#dc2626;">*</span></div>
+        <div class="upload-area" id="uploadArea">
+          <i class="fas fa-cloud-upload-alt"></i>
+          <span>点击或拖拽上传付款截图（支持jpg/png，最多10张）</span>
+          <input type="file" id="paymentUpload" multiple accept="image/*" onchange="handlePaymentUpload(this.files)">
+        </div>
+        <div class="upload-previews" id="paymentPreview"></div>
+        <div style="margin-top:20px;text-align:center;">
+          <button class="btn btn-primary" style="padding:12px 48px;font-size:15px;" onclick="submitBDForm()"><i class="fas fa-paper-plane"></i> 提交占用</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- BD Records Page -->
+    <div class="page" id="page-bd-records">
+      <h2 style="font-size:20px;font-weight:700;margin-bottom:20px;"><i class="fas fa-clock-rotate-left" style="color:var(--primary);"></i> 我的记录</h2>
+      <div class="card">
+        <div class="table-wrap"><table id="bdRecordsTable"></table></div>
+      </div>
+    </div>
+
+    <!-- Change Password Page -->
+    <div class="page" id="page-password">
+      <h2 style="font-size:20px;font-weight:700;margin-bottom:20px;"><i class="fas fa-key" style="color:var(--primary);"></i> 修改密码</h2>
+      <div class="card" style="max-width:400px;">
+        <div class="form-group"><label>旧密码</label><input type="password" id="old-pwd"></div>
+        <div class="form-group"><label>新密码</label><input type="password" id="new-pwd" placeholder="至少4位"></div>
+        <div class="form-group"><label>确认新密码</label><input type="password" id="new-pwd2"></div>
+        <button class="btn btn-primary" onclick="changePassword()"><i class="fas fa-check"></i> 确认修改</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal" id="modalContent"></div>
+</div>
+
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox(event)">
+  <div class="lightbox-close" onclick="closeLightbox()"><i class="fas fa-times"></i></div>
+  <div class="lightbox-nav prev" id="lbPrev" onclick="lbNav(-1,event)"><i class="fas fa-chevron-left"></i></div>
+  <div class="lightbox-nav next" id="lbNext" onclick="lbNav(1,event)"><i class="fas fa-chevron-right"></i></div>
+  <img id="lightboxImg" src="">
+  <div class="lightbox-counter" id="lightboxCounter"></div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// === API Helper ===
+const API = {
+  get: url => fetch(url).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e))),
+  post: (url, data) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e))),
+  put: (url, data) => fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e))),
+  del: url => fetch(url, { method: 'DELETE' }).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e))),
+  upload: (url, formData) => fetch(url, { method: 'POST', body: formData }).then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e))),
+};
+
+// === State ===
+let currentUser = null;
+let currentPage = '';
+let allProducts = [];
+let allRecords = [];
+let allUsers = [];
+let selectedProduct = null;
+let selectedVariant = null;
+let paymentFiles = [];
+let lbImages = [];
+let lbIndex = 0;
+let trendChartInstance = null;
+let stockChartInstance = null;
+
+// === Init ===
+async function init() {
+  try {
+    const { user } = await API.get('/api/me');
+    currentUser = user;
+    showApp();
+  } catch (e) {
+    showLogin();
+  }
+}
+
+function showLogin() {
+  document.getElementById('loginOverlay').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+}
+
+function showApp() {
+  document.getElementById('loginOverlay').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  renderSidebar();
+  const defaultPage = currentUser.role === 'admin' ? 'dashboard' : 'bd-submit';
+  navigateTo(defaultPage);
+}
+
+// === Login/Logout ===
+async function doLogin() {
+  const phone = document.getElementById('login-phone').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-error');
+  errEl.textContent = '';
+  try {
+    const { user } = await API.post('/api/login', { phone, password });
+    currentUser = user;
+    showApp();
+  } catch (e) {
+    errEl.textContent = e.error || '登录失败';
+  }
+}
+
+async function doLogout() {
+  try { await API.post('/api/logout'); } catch (e) { }
+  currentUser = null;
+  showLogin();
+}
+
+// Enter key login
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.getElementById('loginOverlay').style.display !== 'none') doLogin();
+});
+
+// === Navigation ===
+const adminNav = [
+  { id: 'dashboard', icon: 'fa-chart-pie', label: '数据看板' },
+  { id: 'products', icon: 'fa-box-open', label: '商品管理' },
+  { id: 'users', icon: 'fa-users', label: '用户管理' },
+  { section: '数据' },
+  { id: 'records', icon: 'fa-clipboard-list', label: '占用记录' },
+  { id: 'export', icon: 'fa-file-export', label: '数据导出' },
+  { section: '设置' },
+  { id: 'password', icon: 'fa-key', label: '修改密码' },
+];
+const bdNav = [
+  { id: 'bd-submit', icon: 'fa-pen-to-square', label: '填写占用' },
+  { id: 'bd-records', icon: 'fa-clock-rotate-left', label: '我的记录' },
+  { section: '设置' },
+  { id: 'password', icon: 'fa-key', label: '修改密码' },
+];
+
+function renderSidebar() {
+  const nav = currentUser.role === 'admin' ? adminNav : bdNav;
+  const html = nav.map(item => {
+    if (item.section) return `<div class="nav-section">${item.section}</div>`;
+    return `<div class="nav-item ${currentPage === item.id ? 'active' : ''}" onclick="navigateTo('${item.id}')"><i class="fas ${item.icon}"></i> ${item.label}</div>`;
+  }).join('');
+  document.getElementById('sidebarNav').innerHTML = html;
+  document.getElementById('userAvatar').textContent = currentUser.name.charAt(0);
+  document.getElementById('userName').textContent = currentUser.name;
+  document.getElementById('userRole').textContent = currentUser.role === 'admin' ? '管理员' : 'BD';
+}
+
+async function navigateTo(page) {
+  currentPage = page;
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  const el = document.getElementById('page-' + page);
+  if (el) el.classList.add('active');
+  renderSidebar();
+
+  // Load data
+  try {
+    if (page === 'dashboard') await loadDashboard();
+    else if (page === 'products') await loadProducts();
+    else if (page === 'users') await loadUsers();
+    else if (page === 'records') await loadRecords();
+    else if (page === 'export') await loadExportFilters();
+    else if (page === 'bd-submit') await loadBDSubmit();
+    else if (page === 'bd-records') await loadBDRecords();
+  } catch (e) {
+    if (e.error === '请先登录' || e.error === '未登录') { showLogin(); return; }
+    showToast(e.error || '加载失败', 'error');
+  }
+}
+
+// === Dashboard ===
+async function loadDashboard() {
+  const data = await API.get('/api/dashboard');
+  renderStats(data);
+  renderTrendChart(data.trend);
+  renderStockChart(data.inventory);
+  renderBDRanking(data.bdRanking);
+}
+
+function renderStats(data) {
+  document.getElementById('statsRow').innerHTML = `
+    <div class="stat-card blue"><div class="stat-label">今日占用数量</div><div class="stat-value">${data.today.occupied}</div><div class="stat-sub">累计 ${data.total.occupied}</div></div>
+    <div class="stat-card green"><div class="stat-label">今日占用金额</div><div class="stat-value">¥${data.today.amount.toLocaleString()}</div><div class="stat-sub">累计 ¥${data.total.amount.toLocaleString()}</div></div>
+    <div class="stat-card purple"><div class="stat-label">今日提交次数</div><div class="stat-value">${data.today.count}</div><div class="stat-sub">累计 ${data.total.count}</div></div>
+    <div class="stat-card orange"><div class="stat-label">商品规格数</div><div class="stat-value">${data.inventory.length}</div><div class="stat-sub">平均占用率 ${data.inventory.length > 0 ? Math.round(data.inventory.reduce((s, i) => s + i.rate, 0) / data.inventory.length) : 0}%</div></div>
+  `;
+}
+
+function renderTrendChart(trend) {
+  const ctx = document.getElementById('trendChart').getContext('2d');
+  if (trendChartInstance) trendChartInstance.destroy();
+  trendChartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: trend.map(t => t.date.slice(5)),
+      datasets: [{
+        label: '占用数量',
+        data: trend.map(t => t.qty),
+        borderColor: '#6366f1',
+        backgroundColor: 'rgba(99,102,241,.1)',
+        fill: true,
+        tension: 0.4,
+      }, {
+        label: '金额(¥)',
+        data: trend.map(t => t.amount),
+        borderColor: '#22c55e',
+        backgroundColor: 'rgba(34,197,94,.1)',
+        fill: true,
+        tension: 0.4,
+        yAxisID: 'y1',
+      }]
+    },
+    options: {
+      responsive: true,
+      scales: { y: { beginAtZero: true }, y1: { position: 'right', beginAtZero: true, grid: { display: false } } }
+    }
+  });
+}
+
+function renderStockChart(inventory) {
+  const ctx = document.getElementById('stockChart').getContext('2d');
+  if (stockChartInstance) stockChartInstance.destroy();
+  stockChartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: inventory.map(i => i.name.length > 10 ? i.name.slice(0, 10) + '...' : i.name),
+      datasets: [
+        { label: '已占用', data: inventory.map(i => i.occupied), backgroundColor: '#6366f1' },
+        { label: '剩余', data: inventory.map(i => i.remain), backgroundColor: '#e2e8f0' },
+      ]
+    },
+    options: { responsive: true, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } }
+  });
+}
+
+function renderBDRanking(ranking) {
+  if (ranking.length === 0) {
+    document.getElementById('bdRanking').innerHTML = '<div style="text-align:center;color:#94a3b8;padding:20px;">今日暂无提交</div>';
+    return;
+  }
+  document.getElementById('bdRanking').innerHTML = `<table><thead><tr><th>排名</th><th>BD姓名</th><th>占用数量</th><th>金额(¥)</th><th>提交次数</th></tr></thead><tbody>${ranking.map((r, i) => `<tr><td>${i + 1}</td><td>${r.bd_name}</td><td>${r.total_qty}</td><td>¥${r.total_amount.toLocaleString()}</td><td>${r.count}</td></tr>`).join('')}</tbody></table>`;
+}
+
+// === Products ===
+async function loadProducts() {
+  const { products } = await API.get('/api/products');
+  allProducts = products;
+  renderProducts();
+}
+
+function renderProducts() {
+  document.getElementById('productGrid').innerHTML = allProducts.map(p => {
+    const variantHTML = p.variants.map(v => {
+      const remain = v.stock - v.occupied;
+      const rate = v.stock > 0 ? Math.round(v.occupied / v.stock * 100) : 0;
+      const color = rate > 80 ? '#dc2626' : rate > 50 ? '#f59e0b' : '#22c55e';
+      return `<div class="variant-item">
+        <div><b>${v.name}</b> <span class="variant-stock">库存${v.stock} / 已占用${v.occupied} / 剩余${remain} / ¥${v.price}
+          <span class="stock-bar"><span class="stock-bar-fill" style="width:${rate}%;background:${color};"></span></span>
+        </span></div>
+        <div class="variant-actions">
+          <button class="btn btn-sm btn-outline" onclick="showEditVariant('${p.id}','${v.id}')"><i class="fas fa-edit"></i></button>
+          <button class="btn btn-sm btn-danger" onclick="deleteVariant('${p.id}','${v.id}')"><i class="fas fa-trash"></i></button>
+        </div>
+      </div>`;
+    }).join('');
+    return `<div class="product-card">
+      <div class="product-img">${p.image ? `<img src="${p.image}" alt="">` : '<i class="fas fa-image"></i>'}</div>
+      <div class="product-body">
+        <div class="product-name">${p.name}</div>
+        ${variantHTML}
+        <div style="margin-top:10px;display:flex;gap:6px;">
+          <button class="btn btn-sm btn-success" onclick="showAddVariant('${p.id}')"><i class="fas fa-plus"></i> 添加规格</button>
+          <button class="btn btn-sm btn-outline" onclick="showEditProduct('${p.id}')"><i class="fas fa-edit"></i></button>
+          <button class="btn btn-sm btn-danger" onclick="deleteProduct('${p.id}')"><i class="fas fa-trash"></i></button>
+        </div>
+      </div>
+    </div>`;
+  }).join('') || '<div style="color:#94a3b8;text-align:center;padding:40px;">暂无商品，请点击右上角添加</div>';
+}
+
+function showAddProduct() {
+  showModal(`<h3>添加商品组</h3>
+    <div class="form-group"><label>商品组名称</label><input type="text" id="m-prod-name" placeholder="如：春节档周边礼盒"></div>
+    <div class="form-group"><label>商品图片</label><input type="file" id="m-prod-image" accept="image/*"></div>
+    <div class="modal-actions"><button class="btn btn-outline" onclick="closeModal()">取消</button><button class="btn btn-primary" onclick="addProduct()">添加</button></div>
+  `);
+}
+
+async function addProduct() {
+  const name = document.getElementById('m-prod-name').value.trim();
+  if (!name) { showToast('请输入名称', 'error'); return; }
+  const fd = new FormData();
+  fd.append('name', name);
+  const fileInput = document.getElementById('m-prod-image');
+  if (fileInput.files[0]) fd.append('image', fileInput.files[0]);
+  try {
+    await API.upload('/api/products', fd);
+    closeModal();
+    showToast('添加成功', 'success');
+    loadProducts();
+  } catch (e) { showToast(e.error || '添加失败', 'error'); }
+}
+
+function showEditProduct(id) {
+  const p = allProducts.find(x => x.id === id);
+  if (!p) return;
+  showModal(`<h3>编辑商品组</h3>
+    <div class="form-group"><label>商品组名称</label><input type="text" id="m-prod-name" value="${p.name}"></div>
+    <div class="form-group"><label>更换图片（留空则不换）</label><input type="file" id="m-prod-image" accept="image/*"></div>
+    <div style="margin-top:4px;"><label><input type="checkbox" id="m-remove-img"> 删除当前图片</label></div>
+    <div class="modal-actions"><button class="btn btn-outline" onclick="closeModal()">取消</button><button class="btn btn-primary" onclick="editProduct('${id}')">保存</button></div>
+  `);
+}
+
+async function editProduct(id) {
+  const name = document.getElementById('m-prod-name').value.trim();
+  const fd = new FormData();
+  fd.append('name', name);
+  const fileInput = document.getElementById('m-prod-image');
+  if (fileInput.files[0]) fd.append('image', fileInput.files[0]);
+  if (document.getElementById('m-remove-img').checked) fd.append('removeImage', '1');
+  try {
+    await API.upload('/api/products/' + id, fd); // This won't work with PUT + FormData via our helper
+    // Use fetch directly
+    await fetch('/api/products/' + id, { method: 'PUT', body: fd });
+    closeModal();
+    showToast('保存成功', 'success');
+    loadProducts();
+  } catch (e) { showToast(e.error || '保存失败', 'error'); }
+}
+
+async function deleteProduct(id) {
+  if (!confirm('确定删除该商品组及其所有规格和记录？')) return;
+  try {
+    await API.del('/api/products/' + id);
+    showToast('已删除', 'success');
+    loadProducts();
+  } catch (e) { showToast(e.error, 'error'); }
+}
+
+function showAddVariant(groupId) {
+  showModal(`<h3>添加规格</h3>
+    <div class="form-group"><label>规格名称</label><input type="text" id="m-var-name" placeholder="如：A款-经典红"></div>
+    <div class="form-grid"><div class="form-group"><label>库存数量</label><input type="number" id="m-var-stock" min="0" value="100"></div>
+    <div class="form-group"><label>单价(¥)</label><input type="number" id="m-var-price" min="0" step="0.01" value="68"></div></div>
+    <div class="modal-actions"><button class="btn btn-outline" onclick="closeModal()">取消</button><button class="btn btn-primary" onclick="addVariant('${groupId}')">添加</button></div>
+  `);
+}
+
+async function addVariant(groupId) {
+  const name = document.getElementById('m-var-name').value.trim();
+  const stock = parseInt(document.getElementById('m-var-stock').value) || 0;
+  const price = parseFloat(document.getElementById('m-var-price').value) || 0;
+  if (!name) { showToast('请输入规格名称', 'error'); return; }
+  try {
+    await API.post(`/api/products/${groupId}/variants`, { name, stock, price });
+    closeModal();
+    showToast('添加成功', 'success');
+    loadProducts();
+  } catch (e) { showToast(e.error, 'error'); }
+}
+
+function showEditVariant(groupId, variantId) {
+  const p = allProducts.find(x => x.id === groupId);
+  const v = p?.variants.find(x => x.id === variantId);
+  if (!v) return;
+  showModal(`<h3>编辑规格</h3>
+    <div class="form-group"><label>规格名称</label><input type="text" id="m-var-name" value="${v.name}"></div>
+    <div class="form-grid"><div class="form-group"><label>库存数量</label><input type="number" id="m-var-stock" min="0" value="${v.stock}"></div>
+    <div class="form-group"><label>单价(¥)</label><input type="number" id="m-var-price" min="0" step="0.01" value="${v.price}"></div></div>
+    <div class="modal-actions"><button class="btn btn-outline" onclick="closeModal()">取消</button><button class="btn btn-primary" onclick="editVariant('${groupId}','${variantId}')">保存</button></div>
+  `);
+}
+
+async function editVariant(groupId, variantId) {
+  const name = document.getElementById('m-var-name').value.trim();
+  const stock = parseInt(document.getElementById('m-var-stock').value);
+  const price = parseFloat(document.getElementById('m-var-price').value);
+  try {
+    await API.put(`/api/products/${groupId}/variants/${variantId}`, { name, stock, price });
+    closeModal();
+    showToast('保存成功', 'success');
+    loadProducts();
+  } catch (e) { showToast(e.error, 'error'); }
+}
+
+async function deleteVariant(groupId, variantId) {
+  if (!confirm('确定删除该规格及关联记录？')) return;
+  try {
+    await API.del(`/api/products/${groupId}/variants/${variantId}`);
+    showToast('已删除', 'success');
+    loadProducts();
+  } catch (e) { showToast(e.error, 'error'); }
+}
+
+// === Users ===
+async function loadUsers() {
+  const { users } = await API.get('/api/users');
+  allUsers = users;
+  renderUsers();
+}
+
+function renderUsers() {
+  document.getElementById('usersTable').innerHTML = `
+    <thead><tr><th>手机号</th><th>姓名</th><th>角色</th><th>创建时间</th><th>操作</th></tr></thead>
+    <tbody>${allUsers.map(u => `<tr>
+      <td>${u.phone}</td><td>${u.name}</td>
+      <td><span class="badge badge-${u.role}">${u.role === 'admin' ? '管理员' : 'BD'}</span></td>
+      <td>${u.created_at ? new Date(u.created_at + 'Z').toLocaleString('zh-CN') : '-'}</td>
+      <td>
+        <button class="btn btn-sm btn-outline" onclick="showEditUser('${u.id}')"><i class="fas fa-edit"></i></button>
+        <button class="btn btn-sm btn-danger" onclick="deleteUser('${u.id}')"><i class="fas fa-trash"></i></button>
+      </td>
+    </tr>`).join('')}</tbody>`;
+}
+
+function showAddUser() {
+  showModal(`<h3>添加用户</h3>
+    <div class="form-grid">
+      <div class="form-group"><label>手机号</label><input type="text" id="m-user-phone" placeholder="手机号"></div>
+      <div class="form-group"><label>姓名</label><input type="text" id="m-user-name" placeholder="姓名"></div>
+    </div>
+    <div class="form-grid">
+      <div class="form-group"><label>角色</label><select id="m-user-role"><option value="bd">BD</option><option value="admin">管理员</option></select></div>
+      <div class="form-group"><label>初始密码</label><input type="text" id="m-user-pwd" value="123456"></div>
+    </div>
+    <div class="modal-actions"><button class="btn btn-outline" onclick="closeModal()">取消</button><button class="btn btn-primary" onclick="addUser()">添加</button></div>
+  `);
+}
+
+async function addUser() {
+  const phone = document.getElementById('m-user-phone').value.trim();
+  const name = document.getElementById('m-user-name').value.trim();
+  const role = document.getElementById('m-user-role').value;
+  const password = document.getElementById('m-user-pwd').value;
+  try {
+    await API.post('/api/users', { phone, name, role, password });
+    closeModal(); showToast('添加成功', 'success'); loadUsers();
+  } catch (e) { showToast(e.error, 'error'); }
+}
+
+function showEditUser(id) {
+  const u = allUsers.find(x => x.id === id);
+  if (!u) return;
+  showModal(`<h3>编辑用户</h3>
+    <div class="form-grid">
+      <div class="form-group"><label>姓名</label><input type="text" id="m-user-name" value="${u.name}"></div>
+      <div class="form-group"><label>角色</label><select id="m-user-role"><option value="bd" ${u.role === 'bd' ? 'selected' : ''}>BD</option><option value="admin" ${u.role === 'admin' ? 'selected' : ''}>管理员</option></select></div>
+    </div>
+    <div class="form-group"><label>重置密码（留空则不修改）</label><input type="text" id="m-user-pwd" placeholder="输入新密码"></div>
+    <div class="modal-actions"><button class="btn btn-outline" onclick="closeModal()">取消</button><button class="btn btn-primary" onclick="editUser('${id}')">保存</button></div>
+  `);
+}
+
+async function editUser(id) {
+  const name = document.getElementById('m-user-name').value.trim();
+  const role = document.getElementById('m-user-role').value;
+  const password = document.getElementById('m-user-pwd').value;
+  try {
+    const body = { name, role };
+    if (password) body.password = password;
+    await API.put('/api/users/' + id, body);
+    closeModal(); showToast('保存成功', 'success'); loadUsers();
+  } catch (e) { showToast(e.error, 'error'); }
+}
+
+async function deleteUser(id) {
+  if (!confirm('确定删除该用户？')) return;
+  try { await API.del('/api/users/' + id); showToast('已删除', 'success'); loadUsers(); }
+  catch (e) { showToast(e.error, 'error'); }
+}
+
+function showBatchAddUsers() {
+  showModal(`<h3>批量添加用户</h3>
+    <div style="font-size:13px;color:#64748b;margin-bottom:12px;">每行一个用户，格式：<b>手机号,姓名,初始密码</b>（逗号分隔）。默认角色为 BD。</div>
+    <div class="form-group"><textarea id="m-batch-users" rows="12" placeholder="13800001111,张三,123456&#10;13800002222,李四,123456&#10;13800003333,王五,123456" style="font-family:monospace;font-size:13px;"></textarea></div>
+    <div class="modal-actions"><button class="btn btn-outline" onclick="closeModal()">取消</button><button class="btn btn-primary" onclick="batchAddUsers()">批量添加</button></div>
+  `);
+}
+
+async function batchAddUsers() {
+  const text = document.getElementById('m-batch-users').value.trim();
+  if (!text) { showToast('请输入用户数据', 'error'); return; }
+  const lines = text.split('\n').filter(l => l.trim());
+  const users = lines.map(l => {
+    const parts = l.split(',').map(s => s.trim());
+    return { phone: parts[0], name: parts[1], password: parts[2] || '123456', role: 'bd' };
+  });
+  try {
+    const result = await API.post('/api/users/batch', { users });
+    closeModal();
+    showToast(`成功添加 ${result.added} 人，跳过 ${result.skipped} 人`, 'success');
+    loadUsers();
+  } catch (e) { showToast(e.error, 'error'); }
+}
+
+// === Records ===
+async function loadRecords() {
+  const { records } = await API.get('/api/records');
+  allRecords = records;
+  const { products } = await API.get('/api/products');
+  allProducts = products;
+  renderRecordFilters();
+  renderRecords(allRecords);
+}
+
+function renderRecordFilters() {
+  document.getElementById('recordFilters').innerHTML = `
+    <input type="date" id="filter-date-from" title="开始日期">
+    <input type="date" id="filter-date-to" title="结束日期">
+    <input type="text" id="filter-bd" placeholder="BD姓名">
+    <select id="filter-product"><option value="">全部商品</option>${allProducts.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}</select>
+    <button class="btn btn-sm btn-primary" onclick="filterRecords()"><i class="fas fa-search"></i> 筛选</button>
+    <button class="btn btn-sm btn-outline" onclick="resetRecordFilters()"><i class="fas fa-undo"></i> 重置</button>
+  `;
+}
+
+function filterRecords() {
+  let recs = [...allRecords];
+  const df = document.getElementById('filter-date-from').value;
+  const dt = document.getElementById('filter-date-to').value;
+  const bd = document.getElementById('filter-bd').value.trim();
+  const prod = document.getElementById('filter-product').value;
+  if (df) recs = recs.filter(r => r.created_at.slice(0, 10) >= df);
+  if (dt) recs = recs.filter(r => r.created_at.slice(0, 10) <= dt);
+  if (bd) recs = recs.filter(r => r.bd_name.includes(bd));
+  if (prod) recs = recs.filter(r => r.product_group_id === prod);
+  renderRecords(recs);
+}
+
+function resetRecordFilters() {
+  document.getElementById('filter-date-from').value = '';
+  document.getElementById('filter-date-to').value = '';
+  document.getElementById('filter-bd').value = '';
+  document.getElementById('filter-product').value = '';
+  renderRecords(allRecords);
+}
+
+function renderRecords(recs) {
+  document.getElementById('recordsTable').innerHTML = `
+    <thead><tr><th>提交时间</th><th>BD</th><th>影城专资ID</th><th>影城名称</th><th>收件人</th><th>手机号</th><th>省/市/区</th><th>地址</th><th>商品</th><th>规格</th><th>数量</th><th>单价</th><th>小计</th><th>付款截图</th><th>操作</th></tr></thead>
+    <tbody>${recs.length === 0 ? '<tr><td colspan="15" style="text-align:center;padding:24px;color:#aaa;">暂无记录</td></tr>' : recs.map(r => {
+      const imgs = r.images && r.images.length > 0
+        ? `<div class="img-thumbs">${r.images.map((img, idx) => `<img class="img-thumb" src="${img.file_path}" onclick="openLightboxRecord(${JSON.stringify(r.images).replace(/"/g, '&quot;')}, ${idx})" title="点击查看大图">`).join('')}</div>`
+        : '<span style="color:#bbb;font-size:12px;">无</span>';
+      return `<tr>
+        <td style="font-size:11px;white-space:nowrap;">${formatDate(r.created_at)}</td>
+        <td>${r.bd_name}</td><td>${r.cinema_special_id || ''}</td><td>${r.cinema_name || ''}</td>
+        <td>${r.receiver_name}</td><td>${r.receiver_phone}</td>
+        <td>${[r.province, r.city, r.district].filter(Boolean).join('/')}</td>
+        <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${r.address}">${r.address}</td>
+        <td>${r.product_group_name}</td><td>${r.variant_name}</td>
+        <td>${r.qty}</td><td>¥${r.price}</td><td>¥${r.subtotal.toLocaleString()}</td>
+        <td>${imgs}</td>
+        <td>${currentUser.role === 'admin' ? `<button class="btn btn-sm btn-danger" onclick="deleteRecord('${r.id}')"><i class="fas fa-trash"></i></button>` : ''}</td>
+      </tr>`;
+    }).join('')}</tbody>`;
+}
+
+function openLightboxRecord(images, idx) {
+  lbImages = images.map(i => i.file_path);
+  lbIndex = idx;
+  showLightboxImage();
+  document.getElementById('lightbox').classList.add('show');
+}
+
+async function deleteRecord(id) {
+  if (!confirm('确定删除该记录？库存将释放回商品。')) return;
+  try { await API.del('/api/records/' + id); showToast('已删除', 'success'); loadRecords(); }
+  catch (e) { showToast(e.error, 'error'); }
+}
+
+// === Export ===
+async function loadExportFilters() {
+  const { products } = await API.get('/api/products');
+  allProducts = products;
+  const today = new Date().toISOString().slice(0, 10);
+  document.getElementById('exportFilters').innerHTML = `
+    <input type="date" id="exp-date-from" title="开始日期">
+    <input type="date" id="exp-date-to" title="结束日期" value="${today}">
+    <input type="text" id="exp-bd" placeholder="BD姓名">
+    <select id="exp-product"><option value="">全部商品</option>${allProducts.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}</select>
+  `;
+}
+
+function doExport() {
+  const df = document.getElementById('exp-date-from').value;
+  const dt = document.getElementById('exp-date-to').value;
+  const bd = document.getElementById('exp-bd').value.trim();
+  const prod = document.getElementById('exp-product').value;
+  let url = '/api/export?';
+  if (df) url += `dateFrom=${df}&`;
+  if (dt) url += `dateTo=${dt}&`;
+  if (bd) url += `bdName=${encodeURIComponent(bd)}&`;
+  if (prod) url += `productId=${prod}&`;
+  window.open(url, '_blank');
+}
+
+// === BD Submit ===
+async function loadBDSubmit() {
+  const { products } = await API.get('/api/products');
+  allProducts = products;
+  selectedProduct = null;
+  selectedVariant = null;
+  paymentFiles = [];
+  renderBDProducts();
+  document.getElementById('bdVariantArea').style.display = 'none';
+  document.getElementById('bdFormArea').style.display = 'none';
+  document.getElementById('paymentPreview').innerHTML = '';
+}
+
+function renderBDProducts() {
+  document.getElementById('bdProductList').innerHTML = allProducts.map(p => `
+    <div class="bd-product-item ${selectedProduct?.id === p.id ? 'selected' : ''}" onclick="selectBDProduct('${p.id}')">
+      ${p.image ? `<img class="bp-img" src="${p.image}" alt="">` : '<i class="fas fa-box" style="font-size:28px;color:#cbd5e1;display:block;margin:0 auto;"></i>'}
+      <div class="bp-name">${p.name}</div>
+    </div>
+  `).join('') || '<div style="color:#94a3b8;">暂无可用商品</div>';
+}
+
+function selectBDProduct(productId) {
+  selectedProduct = allProducts.find(p => p.id === productId);
+  selectedVariant = null;
+  renderBDProducts();
+  const area = document.getElementById('bdVariantArea');
+  if (selectedProduct && selectedProduct.variants.length > 0) {
+    area.style.display = 'block';
+    document.getElementById('bdVariantList').innerHTML = selectedProduct.variants.map(v => {
+      const remain = v.stock - v.occupied;
+      return `<div class="bd-variant-item ${selectedVariant?.id === v.id ? 'selected' : ''}" onclick="selectBDVariant('${v.id}')">
+        <div class="bv-name">${v.name}</div>
+        <div class="bv-info">剩余 ${remain} 件 · ¥${v.price}/件</div>
+      </div>`;
+    }).join('');
+  } else {
+    area.style.display = 'none';
+  }
+  document.getElementById('bdFormArea').style.display = 'none';
+}
+
+function selectBDVariant(variantId) {
+  selectedVariant = selectedProduct.variants.find(v => v.id === variantId);
+  renderBDProducts();
+  // Re-render variant selection
+  document.getElementById('bdVariantList').innerHTML = selectedProduct.variants.map(v => {
+    const remain = v.stock - v.occupied;
+    return `<div class="bd-variant-item ${selectedVariant?.id === v.id ? 'selected' : ''}" onclick="selectBDVariant('${v.id}')">
+      <div class="bv-name">${v.name}</div>
+      <div class="bv-info">剩余 ${remain} 件 · ¥${v.price}/件</div>
+    </div>`;
+  }).join('');
+  document.getElementById('bdFormArea').style.display = 'block';
+  document.getElementById('bd-price').value = selectedVariant.price;
+  document.getElementById('bd-qty').max = selectedVariant.stock - selectedVariant.occupied;
+  calcSubtotal();
+}
+
+function calcSubtotal() {
+  const qty = parseInt(document.getElementById('bd-qty')?.value) || 0;
+  const price = parseFloat(document.getElementById('bd-price')?.value) || 0;
+  document.getElementById('bd-subtotal-info').textContent = qty > 0 && price > 0 ? `金额小计：¥${(qty * price).toLocaleString()}` : '';
+}
+
+function handlePaymentUpload(files) {
+  for (const f of files) {
+    if (paymentFiles.length >= 10) break;
+    paymentFiles.push(f);
+  }
+  renderPaymentPreviews();
+}
+
+function removePaymentFile(idx) {
+  paymentFiles.splice(idx, 1);
+  renderPaymentPreviews();
+}
+
+function renderPaymentPreviews() {
+  const container = document.getElementById('paymentPreview');
+  container.innerHTML = paymentFiles.map((f, i) => {
+    const url = URL.createObjectURL(f);
+    return `<div class="preview-item"><img src="${url}"><button class="remove-btn" onclick="removePaymentFile(${i})"><i class="fas fa-times"></i></button></div>`;
+  }).join('');
+}
+
+async function submitBDForm() {
+  const cinemaSpecialId = document.getElementById('bd-cinema-special-id').value.trim();
+  const cinemaName = document.getElementById('bd-cinema-name').value.trim();
+  const receiverName = document.getElementById('bd-receiver-name').value.trim();
+  const receiverPhone = document.getElementById('bd-receiver-phone').value.trim();
+  const province = document.getElementById('bd-province').value.trim();
+  const city = document.getElementById('bd-city').value.trim();
+  const district = document.getElementById('bd-district').value.trim();
+  const address = document.getElementById('bd-address').value.trim();
+  const qty = parseInt(document.getElementById('bd-qty').value) || 0;
+  const price = parseFloat(document.getElementById('bd-price').value) || 0;
+
+  if (!cinemaSpecialId) { showToast('请填写影城专资ID', 'error'); return; }
+  if (!cinemaName) { showToast('请填写影城名称', 'error'); return; }
+  if (!selectedVariant) { showToast('请选择商品规格', 'error'); return; }
+  if (!receiverName) { showToast('请填写收件人姓名', 'error'); return; }
+  if (!receiverPhone) { showToast('请填写收件人手机号', 'error'); return; }
+  if (!address) { showToast('请填写收件人地址', 'error'); return; }
+  if (qty < 1) { showToast('数量至少为1', 'error'); return; }
+  if (paymentFiles.length === 0) { showToast('请上传付款截图', 'error'); return; }
+
+  const fd = new FormData();
+  fd.append('cinemaSpecialId', cinemaSpecialId);
+  fd.append('cinemaName', cinemaName);
+  fd.append('variantId', selectedVariant.id);
+  fd.append('qty', qty);
+  fd.append('price', price);
+  fd.append('receiverName', receiverName);
+  fd.append('receiverPhone', receiverPhone);
+  fd.append('province', province);
+  fd.append('city', city);
+  fd.append('district', district);
+  fd.append('address', address);
+  for (const f of paymentFiles) fd.append('paymentImages', f);
+
+  try {
+    await API.upload('/api/records', fd);
+    showToast('提交成功！', 'success');
+    // Reset form
+    document.getElementById('bd-cinema-special-id').value = '';
+    document.getElementById('bd-cinema-name').value = '';
+    document.getElementById('bd-receiver-name').value = '';
+    document.getElementById('bd-receiver-phone').value = '';
+    document.getElementById('bd-province').value = '';
+    document.getElementById('bd-city').value = '';
+    document.getElementById('bd-district').value = '';
+    document.getElementById('bd-address').value = '';
+    document.getElementById('bd-qty').value = '1';
+    document.getElementById('bd-price').value = '';
+    document.getElementById('bd-subtotal-info').textContent = '';
+    paymentFiles = [];
+    document.getElementById('paymentPreview').innerHTML = '';
+    document.getElementById('paymentUpload').value = '';
+    selectedProduct = null;
+    selectedVariant = null;
+    loadBDSubmit();
+    setTimeout(() => navigateTo('bd-records'), 800);
+  } catch (e) { showToast(e.error || '提交失败', 'error'); }
+}
+
+// === BD Records ===
+async function loadBDRecords() {
+  const { records } = await API.get('/api/records');
+  renderBDRecords(records);
+}
+
+function renderBDRecords(recs) {
+  document.getElementById('bdRecordsTable').innerHTML = `
+    <thead><tr><th>提交时间</th><th>影城专资ID</th><th>影城名称</th><th>商品</th><th>规格</th><th>数量</th><th>单价</th><th>小计</th><th>收件人</th><th>付款截图</th></tr></thead>
+    <tbody>${recs.length === 0 ? '<tr><td colspan="10" style="text-align:center;padding:24px;color:#aaa;">暂无记录</td></tr>' : recs.map(r => {
+      const imgs = r.images && r.images.length > 0
+        ? `<div class="img-thumbs">${r.images.map((img, idx) => `<img class="img-thumb" src="${img.file_path}" onclick="openLightboxRecord(${JSON.stringify(r.images).replace(/"/g, '&quot;')}, ${idx})" title="点击查看大图">`).join('')}</div>`
+        : '<span style="color:#bbb;font-size:12px;">无</span>';
+      return `<tr>
+        <td style="font-size:11px;white-space:nowrap;">${formatDate(r.created_at)}</td>
+        <td>${r.cinema_special_id || ''}</td><td>${r.cinema_name || ''}</td>
+        <td>${r.product_group_name}</td><td>${r.variant_name}</td>
+        <td>${r.qty}</td><td>¥${r.price}</td><td>¥${r.subtotal.toLocaleString()}</td>
+        <td>${r.receiver_name}</td><td>${imgs}</td>
+      </tr>`;
+    }).join('')}</tbody>`;
+}
+
+// === Password ===
+async function changePassword() {
+  const oldPwd = document.getElementById('old-pwd').value;
+  const newPwd = document.getElementById('new-pwd').value;
+  const newPwd2 = document.getElementById('new-pwd2').value;
+  if (!oldPwd || !newPwd) { showToast('请填写所有字段', 'error'); return; }
+  if (newPwd !== newPwd2) { showToast('两次输入的新密码不一致', 'error'); return; }
+  if (newPwd.length < 4) { showToast('新密码至少4位', 'error'); return; }
+  try {
+    await API.put('/api/me/password', { oldPassword: oldPwd, newPassword: newPwd });
+    showToast('密码修改成功', 'success');
+    document.getElementById('old-pwd').value = '';
+    document.getElementById('new-pwd').value = '';
+    document.getElementById('new-pwd2').value = '';
+  } catch (e) { showToast(e.error, 'error'); }
+}
+
+// === Lightbox ===
+function openLightbox(src) {
+  lbImages = [src]; lbIndex = 0;
+  showLightboxImage();
+  document.getElementById('lightbox').classList.add('show');
+}
+
+function showLightboxImage() {
+  document.getElementById('lightboxImg').src = lbImages[lbIndex];
+  document.getElementById('lightboxCounter').textContent = `${lbIndex + 1} / ${lbImages.length}`;
+  document.getElementById('lbPrev').style.display = lbImages.length > 1 ? '' : 'none';
+  document.getElementById('lbNext').style.display = lbImages.length > 1 ? '' : 'none';
+}
+
+function lbNav(dir, e) {
+  e && e.stopPropagation();
+  lbIndex = (lbIndex + dir + lbImages.length) % lbImages.length;
+  showLightboxImage();
+}
+
+function closeLightbox(e) {
+  if (e && e.target !== document.getElementById('lightbox') && !e.target.closest('.lightbox-close')) return;
+  document.getElementById('lightbox').classList.remove('show');
+}
+
+// === Modal ===
+function showModal(html) {
+  document.getElementById('modalContent').innerHTML = html;
+  document.getElementById('modalOverlay').classList.add('show');
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('show');
+}
+
+document.getElementById('modalOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('modalOverlay')) closeModal();
+});
+
+// === Toast ===
+function showToast(msg, type = 'info') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast ' + type + ' show';
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// === Utils ===
+function formatDate(iso) {
+  if (!iso) return '-';
+  // iso 格式来自SQLite localtime，如 "2026-06-15 23:55:12"，已经是本地时间
+  const d = new Date(iso);
+  // 如果解析失败（Invalid Date），补上T分隔符重试
+  if (isNaN(d.getTime())) {
+    const d2 = new Date(iso.replace(' ', 'T'));
+    return isNaN(d2.getTime()) ? iso : d2.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }
+  return d.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+// === Auto-refresh for admin pages ===
+setInterval(() => {
+  if (currentUser?.role === 'admin' && currentPage === 'records') loadRecords();
+  if (currentUser?.role === 'admin' && currentPage === 'dashboard') loadDashboard();
+}, 30000);
+
+// === Start ===
+init();
+</script>
+</body>
+</html>
